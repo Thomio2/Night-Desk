@@ -1,5 +1,3 @@
-console.log("NightDesk script loaded.");
-
 const translations = {
   en: {
     links: "Quick Links",
@@ -14,6 +12,39 @@ const translations = {
     notes: "Poznámky",
   },
 };
+
+// Bezpečné čtení a zápis do localStorage. Když je úložiště nedostupné
+// (např. blokované v prohlížeči) nebo obsahuje poškozená data, skript nespadne:
+// čtení vrátí null a zápis se tiše přeskočí (data se prostě neuloží).
+function readStorage(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    // Úložiště není dostupné nebo je plné.
+  }
+}
+
+// Načte uložené pole a ponechá jen platné položky.
+// Vrací null, pokud data chybí nebo jsou poškozená.
+function readStoredList(key, isValidItem) {
+  const raw = readStorage(key);
+  if (raw === null) return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isValidItem) : null;
+  } catch (error) {
+    return null;
+  }
+}
 
 const SETTINGS_KEY = "nightdesk-settings";
 
@@ -30,7 +61,7 @@ const DEFAULT_SETTINGS = {
 
 function loadSettings() {
   try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
+    const raw = readStorage(SETTINGS_KEY);
     return raw
       ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
       : { ...DEFAULT_SETTINGS };
@@ -40,7 +71,7 @@ function loadSettings() {
 }
 
 function saveSettings() {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  writeStorage(SETTINGS_KEY, JSON.stringify(settings));
 }
 
 let settings = loadSettings();
@@ -101,23 +132,27 @@ const STARTER_LINKS = [
   { name: "GitHub", url: "https://github.com" },
   { name: "YouTube", url: "https://youtube.com" },
   { name: "Discord", url: "https://discord.com" },
-  { name: "ChatGPT", url: "https://chat.openai.com" },
+  { name: "ChatGPT", url: "https://chatgpt.com" },
 ];
 
 const LINKS_STORAGE_KEY = "nightdesk-links-v2";
 
+function isValidLink(link) {
+  return Boolean(link) && typeof link.name === "string" && typeof link.url === "string";
+}
+
 function loadLinks() {
-  const raw = localStorage.getItem(LINKS_STORAGE_KEY);
-  if (raw === null) {
-    const seeded = [...STARTER_LINKS];
-    localStorage.setItem(LINKS_STORAGE_KEY, JSON.stringify(seeded));
-    return seeded;
-  }
-  return JSON.parse(raw);
+  const stored = readStoredList(LINKS_STORAGE_KEY, isValidLink);
+  if (stored !== null) return stored;
+
+  // Poprvé (nebo po poškození dat): výchozí odkazy.
+  const seeded = [...STARTER_LINKS];
+  writeStorage(LINKS_STORAGE_KEY, JSON.stringify(seeded));
+  return seeded;
 }
 
 function saveLinks() {
-  localStorage.setItem(LINKS_STORAGE_KEY, JSON.stringify(links));
+  writeStorage(LINKS_STORAGE_KEY, JSON.stringify(links));
 }
 
 let links = loadLinks();
@@ -201,13 +236,16 @@ const TODO_STORAGE_KEY = "nightdesk-todos";
 
 const EDIT_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>`;
 
+function isValidTodo(todo) {
+  return Boolean(todo) && typeof todo.text === "string";
+}
+
 function loadTodos() {
-  const raw = localStorage.getItem(TODO_STORAGE_KEY);
-  return raw ? JSON.parse(raw) : [];
+  return readStoredList(TODO_STORAGE_KEY, isValidTodo) || [];
 }
 
 function saveTodos() {
-  localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(todos));
+  writeStorage(TODO_STORAGE_KEY, JSON.stringify(todos));
 }
 
 let todos = loadTodos();
@@ -272,12 +310,26 @@ function startEditingTodo(index) {
   input.focus();
   input.select();
 
+  // Úprava se dokončí jen jednou. Bez tohoto příznaku by odstranění vstupního
+  // pole (renderTodos) vyvolalo "blur", ten by zavolal commitEdit() a Escape
+  // by změnu místo zrušení uložil.
+  let finished = false;
+
   function commitEdit() {
+    if (finished) return;
+    finished = true;
+
     const newText = input.value.trim();
     if (newText.length > 0) {
       todos[index].text = newText;
       saveTodos();
     }
+    renderTodos();
+  }
+
+  function cancelEdit() {
+    if (finished) return;
+    finished = true;
     renderTodos();
   }
 
@@ -287,7 +339,7 @@ function startEditingTodo(index) {
       commitEdit();
     }
     if (event.key === "Escape") {
-      renderTodos();
+      cancelEdit();
     }
   });
 
@@ -394,10 +446,10 @@ updateTimerDisplay();
 const notesArea = document.getElementById("notes-area");
 const NOTES_STORAGE_KEY = "nightdesk-notes";
 
-notesArea.value = localStorage.getItem(NOTES_STORAGE_KEY) || "";
+notesArea.value = readStorage(NOTES_STORAGE_KEY) || "";
 
 notesArea.addEventListener("input", () => {
-  localStorage.setItem(NOTES_STORAGE_KEY, notesArea.value);
+  writeStorage(NOTES_STORAGE_KEY, notesArea.value);
 });
 
 const themeToggle = document.getElementById("theme-toggle");
@@ -408,14 +460,14 @@ function applyTheme(theme) {
   themeToggle.textContent = theme === "light" ? "Light" : "Dark";
 }
 
-const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || "dark";
+const savedTheme = readStorage(THEME_STORAGE_KEY) === "light" ? "light" : "dark";
 applyTheme(savedTheme);
 
 themeToggle.addEventListener("click", () => {
   const current = document.documentElement.getAttribute("data-theme") || "dark";
   const next = current === "dark" ? "light" : "dark";
   applyTheme(next);
-  localStorage.setItem(THEME_STORAGE_KEY, next);
+  writeStorage(THEME_STORAGE_KEY, next);
 });
 
 const canvas = document.getElementById("canvas");
@@ -491,7 +543,7 @@ function shiftLayout(data, origin) {
 
 function loadLayout() {
   try {
-    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    const raw = readStorage(LAYOUT_STORAGE_KEY);
     if (raw) {
       const saved = JSON.parse(raw);
       if (isValidLayout(saved)) return saved;
@@ -505,12 +557,12 @@ function loadLayout() {
       [V4_LAYOUT_STORAGE_KEY, origins.v4],
     ];
     for (const [key, origin] of legacy) {
-      const oldRaw = localStorage.getItem(key);
+      const oldRaw = readStorage(key);
       if (!oldRaw) continue;
       const old = JSON.parse(oldRaw);
       if (isValidLayout(old)) {
         const migrated = shiftLayout(old, origin);
-        localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(migrated));
+        writeStorage(LAYOUT_STORAGE_KEY, JSON.stringify(migrated));
         return migrated;
       }
     }
@@ -521,7 +573,7 @@ function loadLayout() {
 }
 
 function saveLayout() {
-  localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+  writeStorage(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
 }
 
 // Výchozí rozložení vypadá stejně jako dřív: mřížka 2x2 pod hodinami.
