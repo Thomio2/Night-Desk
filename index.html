@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NightDesk</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="stars" class="stars" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand-block">
+      <div class="brand">NightDesk</div>
+      <div class="tagline">Built while learning to code</div>
+    </div>
+
+    <div class="topbar-actions">
+      <button id="theme-toggle" class="theme-toggle" type="button">Dark</button>
+
+      <div class="settings">
+        <button
+          id="settings-toggle"
+          class="icon-button"
+          type="button"
+          aria-label="Settings"
+          aria-expanded="false"
+          aria-controls="settings-panel"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+
+        <div id="settings-panel" class="settings-panel" hidden>
+          <h2 class="settings-title">Settings</h2>
+
+          <div class="setting-row">
+            <label for="setting-language">Language</label>
+            <select id="setting-language">
+              <option value="en">ENG</option>
+              <option value="cs">CZ</option>
+            </select>
+          </div>
+
+          <div class="setting-row">
+            <label for="setting-time-format">Time format</label>
+            <select id="setting-time-format">
+              <option value="24">24-hour</option>
+              <option value="12">12-hour</option>
+            </select>
+          </div>
+
+          <div class="setting-row">
+            <label for="setting-seconds">Show seconds</label>
+            <input type="checkbox" id="setting-seconds">
+          </div>
+
+          <h2 class="settings-title settings-title-spaced">Panels</h2>
+
+          <div class="setting-row">
+            <label for="setting-show-links">Quick Links</label>
+            <input type="checkbox" id="setting-show-links">
+          </div>
+
+          <div class="setting-row">
+            <label for="setting-show-todo">To-Do</label>
+            <input type="checkbox" id="setting-show-todo">
+          </div>
+
+          <div class="setting-row">
+            <label for="setting-show-timer">Focus Timer</label>
+            <input type="checkbox" id="setting-show-timer">
+          </div>
+
+          <div class="setting-row">
+            <label for="setting-show-notes">Notes</label>
+            <input type="checkbox" id="setting-show-notes">
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="dashboard">
+
+    <section id="hero" class="hero">
+      <form id="search-form" class="search-form">
+        <input
+          type="text"
+          id="search-input"
+          class="search-input"
+          placeholder="Search Google..."
+          aria-label="Search Google"
+          autocomplete="off"
+        >
+        <button type="submit" class="search-button">Search</button>
+      </form>
+
+      <div class="clock-block">
+        <div id="clock" class="clock">
+          <span id="clock-time">00:00:00</span><span id="clock-suffix" class="clock-suffix"></span>
+        </div>
+        <div id="date" class="date">Day, Month Date, Year</div>
+      </div>
+    </section>
+
+    <div id="canvas" class="canvas">
+
+      <div id="links-widget" class="widget">
+        <div class="widget-header">
+          <h2 class="panel-title" data-i18n="links">Quick Links</h2>
+        </div>
+        <div class="widget-body">
+          <div id="links-grid" class="links-grid">
+            <button id="add-link-button" class="link-tile add-link-tile" type="button" aria-label="Add a link">
+              <span class="link-icon add-link-icon">+</span>
+              <span class="link-label">Add</span>
+            </button>
+          </div>
+        </div>
+        <div class="resize-handle" aria-hidden="true"></div>
+      </div>
+
+      <div id="todo-widget" class="widget">
+        <div class="widget-header">
+          <h2 class="panel-title" data-i18n="todo">To-Do</h2>
+        </div>
+        <div class="widget-body">
+          <form id="todo-form" class="todo-form">
+            <input
+              type="text"
+              id="todo-input"
+              class="todo-input"
+              placeholder="Add a task..."
+              autocomplete="off"
+            >
+            <button type="submit" class="small-button">Add</button>
+          </form>
+          <ul id="todo-list" class="todo-list"></ul>
+        </div>
+        <div class="resize-handle" aria-hidden="true"></div>
+      </div>
+
+      <div id="timer-widget" class="widget">
+        <div class="widget-header">
+          <h2 class="panel-title" data-i18n="timer">Focus Timer</h2>
+        </div>
+        <div class="widget-body widget-body-center">
+          <div id="timer-display" class="timer-display">25:00</div>
+
+          <div class="timer-custom">
+            <input
+              type="number"
+              id="timer-minutes-input"
+              class="timer-minutes-input"
+              min="1"
+              max="180"
+              placeholder="min"
+            >
+            <button id="timer-minutes-apply" class="small-button small-button-secondary" type="button">Set</button>
+          </div>
+
+          <div class="timer-controls">
+            <button id="timer-start" class="small-button" type="button">Start</button>
+            <button id="timer-reset" class="small-button small-button-secondary" type="button">Reset</button>
+          </div>
+          <p id="timer-message" class="timer-message"></p>
+        </div>
+        <div class="resize-handle" aria-hidden="true"></div>
+      </div>
+
+      <div id="notes-widget" class="widget">
+        <div class="widget-header">
+          <h2 class="panel-title" data-i18n="notes">Notes</h2>
+        </div>
+        <div class="widget-body">
+          <textarea
+            id="notes-area"
+            class="notes-area"
+            placeholder="Jot something down..."
+          ></textarea>
+        </div>
+        <div class="resize-handle" aria-hidden="true"></div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
