@@ -1,3 +1,14 @@
+const STORAGE_KEYS = {
+  settings: "nightdesk-settings",
+  links: "nightdesk-links-v2",
+  todos: "nightdesk-todos",
+  notes: "nightdesk-notes",
+  theme: "nightdesk-theme",
+  layout: "nightdesk-layout-v6",
+  layoutV5: "nightdesk-layout-v5",
+  layoutV4: "nightdesk-layout-v4",
+};
+
 const translations = {
   en: {
     links: "Quick Links",
@@ -13,9 +24,6 @@ const translations = {
   },
 };
 
-// Bezpečné čtení a zápis do localStorage. Když je úložiště nedostupné
-// (např. blokované v prohlížeči) nebo obsahuje poškozená data, skript nespadne:
-// čtení vrátí null a zápis se tiše přeskočí (data se prostě neuloží).
 function readStorage(key) {
   try {
     return localStorage.getItem(key);
@@ -28,12 +36,9 @@ function writeStorage(key, value) {
   try {
     localStorage.setItem(key, value);
   } catch (error) {
-    // Úložiště není dostupné nebo je plné.
   }
 }
 
-// Načte uložené pole a ponechá jen platné položky.
-// Vrací null, pokud data chybí nebo jsou poškozená.
 function readStoredList(key, isValidItem) {
   const raw = readStorage(key);
   if (raw === null) return null;
@@ -46,8 +51,6 @@ function readStoredList(key, isValidItem) {
   }
 }
 
-const SETTINGS_KEY = "nightdesk-settings";
-
 const DEFAULT_SETTINGS = {
   language: "en",
   timeFormat: "24",
@@ -59,30 +62,40 @@ const DEFAULT_SETTINGS = {
   showNotes: true,
 };
 
+const MIN_FOCUS_MINUTES = 1;
+const MAX_FOCUS_MINUTES = 180;
+
 function loadSettings() {
+  let saved = {};
   try {
-    const raw = readStorage(SETTINGS_KEY);
-    return raw
-      ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
-      : { ...DEFAULT_SETTINGS };
+    saved = JSON.parse(readStorage(STORAGE_KEYS.settings)) || {};
   } catch (error) {
-    return { ...DEFAULT_SETTINGS };
   }
+
+  const loaded = { ...DEFAULT_SETTINGS, ...saved };
+
+  if (!translations[loaded.language]) {
+    loaded.language = DEFAULT_SETTINGS.language;
+  }
+  if (loaded.timeFormat !== "12" && loaded.timeFormat !== "24") {
+    loaded.timeFormat = DEFAULT_SETTINGS.timeFormat;
+  }
+  const minutes = loaded.focusMinutes;
+  if (!Number.isInteger(minutes) || minutes < MIN_FOCUS_MINUTES || minutes > MAX_FOCUS_MINUTES) {
+    loaded.focusMinutes = DEFAULT_SETTINGS.focusMinutes;
+  }
+  return loaded;
 }
 
 function saveSettings() {
-  writeStorage(SETTINGS_KEY, JSON.stringify(settings));
+  writeStorage(STORAGE_KEYS.settings, JSON.stringify(settings));
 }
 
 let settings = loadSettings();
 
-if (!translations[settings.language]) {
-  settings.language = DEFAULT_SETTINGS.language;
-}
-
-const clockTimeEl = document.getElementById("clock-time");
-const clockSuffixEl = document.getElementById("clock-suffix");
-const dateEl = document.getElementById("date");
+const clockTime = document.getElementById("clock-time");
+const clockSuffix = document.getElementById("clock-suffix");
+const dateDisplay = document.getElementById("date");
 
 function updateClock() {
   const now = new Date();
@@ -98,10 +111,10 @@ function updateClock() {
   const mm = String(now.getMinutes()).padStart(2, "0");
   const ss = String(now.getSeconds()).padStart(2, "0");
 
-  clockTimeEl.textContent = settings.showSeconds
+  clockTime.textContent = settings.showSeconds
     ? `${hh}:${mm}:${ss}`
     : `${hh}:${mm}`;
-  clockSuffixEl.textContent = suffix;
+  clockSuffix.textContent = suffix;
 
   const locale = settings.language === "cs" ? "cs-CZ" : "en-US";
   const dateOptions = {
@@ -110,7 +123,7 @@ function updateClock() {
     month: "long",
     day: "numeric",
   };
-  dateEl.textContent = now.toLocaleDateString(locale, dateOptions);
+  dateDisplay.textContent = now.toLocaleDateString(locale, dateOptions);
 }
 
 updateClock();
@@ -135,24 +148,21 @@ const STARTER_LINKS = [
   { name: "ChatGPT", url: "https://chatgpt.com" },
 ];
 
-const LINKS_STORAGE_KEY = "nightdesk-links-v2";
-
 function isValidLink(link) {
   return Boolean(link) && typeof link.name === "string" && typeof link.url === "string";
 }
 
 function loadLinks() {
-  const stored = readStoredList(LINKS_STORAGE_KEY, isValidLink);
+  const stored = readStoredList(STORAGE_KEYS.links, isValidLink);
   if (stored !== null) return stored;
 
-  // Poprvé (nebo po poškození dat): výchozí odkazy.
   const seeded = [...STARTER_LINKS];
-  writeStorage(LINKS_STORAGE_KEY, JSON.stringify(seeded));
+  writeStorage(STORAGE_KEYS.links, JSON.stringify(seeded));
   return seeded;
 }
 
 function saveLinks() {
-  writeStorage(LINKS_STORAGE_KEY, JSON.stringify(links));
+  writeStorage(STORAGE_KEYS.links, JSON.stringify(links));
 }
 
 let links = loadLinks();
@@ -185,12 +195,12 @@ function renderLinks() {
     label.className = "link-label";
     label.textContent = link.name;
 
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "link-delete";
-    removeBtn.textContent = "x";
-    removeBtn.setAttribute("aria-label", `Remove ${link.name}`);
-    removeBtn.addEventListener("click", (event) => {
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "link-delete";
+    removeButton.textContent = "x";
+    removeButton.setAttribute("aria-label", `Remove ${link.name}`);
+    removeButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       links.splice(index, 1);
@@ -200,7 +210,7 @@ function renderLinks() {
 
     tile.appendChild(icon);
     tile.appendChild(label);
-    tile.appendChild(removeBtn);
+    tile.appendChild(removeButton);
 
     linksGrid.insertBefore(tile, addLinkButton);
   });
@@ -232,8 +242,6 @@ const todoForm = document.getElementById("todo-form");
 const todoInput = document.getElementById("todo-input");
 const todoList = document.getElementById("todo-list");
 
-const TODO_STORAGE_KEY = "nightdesk-todos";
-
 const EDIT_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>`;
 
 function isValidTodo(todo) {
@@ -241,11 +249,11 @@ function isValidTodo(todo) {
 }
 
 function loadTodos() {
-  return readStoredList(TODO_STORAGE_KEY, isValidTodo) || [];
+  return readStoredList(STORAGE_KEYS.todos, isValidTodo) || [];
 }
 
 function saveTodos() {
-  writeStorage(TODO_STORAGE_KEY, JSON.stringify(todos));
+  writeStorage(STORAGE_KEYS.todos, JSON.stringify(todos));
 }
 
 let todos = loadTodos();
@@ -257,10 +265,10 @@ function renderTodos() {
     const li = document.createElement("li");
     li.className = "todo-item" + (todo.completed ? " completed" : "");
 
-    const span = document.createElement("span");
-    span.className = "todo-text";
-    span.textContent = todo.text;
-    span.addEventListener("click", () => {
+    const textSpan = document.createElement("span");
+    textSpan.className = "todo-text";
+    textSpan.textContent = todo.text;
+    textSpan.addEventListener("click", () => {
       todos[index].completed = !todos[index].completed;
       saveTodos();
       renderTodos();
@@ -269,28 +277,28 @@ function renderTodos() {
     const actions = document.createElement("div");
     actions.className = "todo-actions";
 
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "todo-edit";
-    editBtn.setAttribute("aria-label", "Edit task");
-    editBtn.innerHTML = EDIT_ICON;
-    editBtn.addEventListener("click", () => startEditingTodo(index));
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.className = "todo-edit";
+    editButton.setAttribute("aria-label", "Edit task");
+    editButton.innerHTML = EDIT_ICON;
+    editButton.addEventListener("click", () => startEditingTodo(index));
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.type = "button";
-    deleteBtn.className = "todo-delete";
-    deleteBtn.setAttribute("aria-label", "Delete task");
-    deleteBtn.textContent = "x";
-    deleteBtn.addEventListener("click", () => {
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "todo-delete";
+    deleteButton.setAttribute("aria-label", "Delete task");
+    deleteButton.textContent = "x";
+    deleteButton.addEventListener("click", () => {
       todos.splice(index, 1);
       saveTodos();
       renderTodos();
     });
 
-    actions.appendChild(editBtn);
-    actions.appendChild(deleteBtn);
+    actions.appendChild(editButton);
+    actions.appendChild(deleteButton);
 
-    li.appendChild(span);
+    li.appendChild(textSpan);
     li.appendChild(actions);
     todoList.appendChild(li);
   });
@@ -310,9 +318,6 @@ function startEditingTodo(index) {
   input.focus();
   input.select();
 
-  // Úprava se dokončí jen jednou. Bez tohoto příznaku by odstranění vstupního
-  // pole (renderTodos) vyvolalo "blur", ten by zavolal commitEdit() a Escape
-  // by změnu místo zrušení uložil.
   let finished = false;
 
   function commitEdit() {
@@ -360,11 +365,11 @@ todoForm.addEventListener("submit", (event) => {
 renderTodos();
 
 const timerDisplay = document.getElementById("timer-display");
-const timerStartBtn = document.getElementById("timer-start");
-const timerResetBtn = document.getElementById("timer-reset");
+const timerStartButton = document.getElementById("timer-start");
+const timerResetButton = document.getElementById("timer-reset");
 const timerMessage = document.getElementById("timer-message");
 const timerMinutesInput = document.getElementById("timer-minutes-input");
-const timerMinutesApply = document.getElementById("timer-minutes-apply");
+const timerSetButton = document.getElementById("timer-minutes-apply");
 
 let secondsLeft = settings.focusMinutes * 60;
 let timerInterval = null;
@@ -384,7 +389,7 @@ function updateTimerDisplay() {
 function stopTimer() {
   clearInterval(timerInterval);
   isRunning = false;
-  timerStartBtn.textContent = "Start";
+  timerStartButton.textContent = "Start";
 }
 
 function resetTimer() {
@@ -404,7 +409,7 @@ function tick() {
   }
 }
 
-timerStartBtn.addEventListener("click", () => {
+timerStartButton.addEventListener("click", () => {
   if (isRunning) {
     stopTimer();
     return;
@@ -418,22 +423,22 @@ timerStartBtn.addEventListener("click", () => {
   endTime = Date.now() + secondsLeft * 1000;
   timerInterval = setInterval(tick, 250);
   isRunning = true;
-  timerStartBtn.textContent = "Pause";
+  timerStartButton.textContent = "Pause";
 });
 
-timerResetBtn.addEventListener("click", resetTimer);
+timerResetButton.addEventListener("click", resetTimer);
 
 function applyCustomMinutes() {
   const value = Math.round(Number(timerMinutesInput.value));
-  if (!value || value < 1) return;
+  if (!value || value < MIN_FOCUS_MINUTES) return;
 
-  settings.focusMinutes = Math.min(Math.max(value, 1), 180);
+  settings.focusMinutes = Math.min(value, MAX_FOCUS_MINUTES);
   saveSettings();
   resetTimer();
   timerMinutesInput.value = "";
 }
 
-timerMinutesApply.addEventListener("click", applyCustomMinutes);
+timerSetButton.addEventListener("click", applyCustomMinutes);
 timerMinutesInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
@@ -444,30 +449,28 @@ timerMinutesInput.addEventListener("keydown", (event) => {
 updateTimerDisplay();
 
 const notesArea = document.getElementById("notes-area");
-const NOTES_STORAGE_KEY = "nightdesk-notes";
 
-notesArea.value = readStorage(NOTES_STORAGE_KEY) || "";
+notesArea.value = readStorage(STORAGE_KEYS.notes) || "";
 
 notesArea.addEventListener("input", () => {
-  writeStorage(NOTES_STORAGE_KEY, notesArea.value);
+  writeStorage(STORAGE_KEYS.notes, notesArea.value);
 });
 
 const themeToggle = document.getElementById("theme-toggle");
-const THEME_STORAGE_KEY = "nightdesk-theme";
 
 function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
   themeToggle.textContent = theme === "light" ? "Light" : "Dark";
 }
 
-const savedTheme = readStorage(THEME_STORAGE_KEY) === "light" ? "light" : "dark";
+const savedTheme = readStorage(STORAGE_KEYS.theme) === "light" ? "light" : "dark";
 applyTheme(savedTheme);
 
 themeToggle.addEventListener("click", () => {
   const current = document.documentElement.getAttribute("data-theme") || "dark";
   const next = current === "dark" ? "light" : "dark";
   applyTheme(next);
-  writeStorage(THEME_STORAGE_KEY, next);
+  writeStorage(STORAGE_KEYS.theme, next);
 });
 
 const canvas = document.getElementById("canvas");
@@ -477,25 +480,17 @@ const widgets = {
   timer: document.getElementById("timer-widget"),
   notes: document.getElementById("notes-widget"),
 };
+const dashboard = document.querySelector(".dashboard");
+const hero = document.getElementById("hero");
 
-const LAYOUT_STORAGE_KEY = "nightdesk-layout-v6";
-const V5_LAYOUT_STORAGE_KEY = "nightdesk-layout-v5";
-const V4_LAYOUT_STORAGE_KEY = "nightdesk-layout-v4";
 const MIN_WIDGET_WIDTH = 220;
 const MIN_WIDGET_HEIGHT = 160;
 const WIDGET_GAP = 20;
 
-const dashboard = document.querySelector(".dashboard");
-const hero = document.getElementById("hero");
-
-// Na širokých obrazovkách je plátno přilepené k celému oknu (position: fixed),
-// na úzkých leží ve stránce pod hodinami (position: static).
 function isFreeCanvas() {
   return getComputedStyle(canvas).position === "fixed";
 }
 
-// Starší verze ukládaly pozice od jiného počátku než dnešní plátno.
-// Tahle funkce vrátí, kde ten starý počátek leží v dnešních souřadnicích.
 function getLegacyOrigins() {
   if (!isFreeCanvas()) {
     return { v4: { x: 0, y: 0 }, v5: { x: 0, y: 0 } };
@@ -510,12 +505,10 @@ function getLegacyOrigins() {
   const gap = parseFloat(style.rowGap) || 0;
 
   return {
-    // v5: plátno začínalo uvnitř odsazení panelu .dashboard
     v5: {
       x: dashRect.left + padLeft - canvasRect.left,
       y: dashRect.top + padTop - canvasRect.top,
     },
-    // v4: plátno začínalo hned pod hodinami
     v4: {
       x: dashRect.left + padLeft - canvasRect.left,
       y: heroRect.bottom + gap - canvasRect.top,
@@ -543,18 +536,16 @@ function shiftLayout(data, origin) {
 
 function loadLayout() {
   try {
-    const raw = readStorage(LAYOUT_STORAGE_KEY);
+    const raw = readStorage(STORAGE_KEYS.layout);
     if (raw) {
       const saved = JSON.parse(raw);
       if (isValidLayout(saved)) return saved;
     }
 
-    // Migrace ze starších verzí (nejdřív novější v5, pak v4).
-    // Staré záznamy se nemažou.
     const origins = getLegacyOrigins();
     const legacy = [
-      [V5_LAYOUT_STORAGE_KEY, origins.v5],
-      [V4_LAYOUT_STORAGE_KEY, origins.v4],
+      [STORAGE_KEYS.layoutV5, origins.v5],
+      [STORAGE_KEYS.layoutV4, origins.v4],
     ];
     for (const [key, origin] of legacy) {
       const oldRaw = readStorage(key);
@@ -562,21 +553,19 @@ function loadLayout() {
       const old = JSON.parse(oldRaw);
       if (isValidLayout(old)) {
         const migrated = shiftLayout(old, origin);
-        writeStorage(LAYOUT_STORAGE_KEY, JSON.stringify(migrated));
+        writeStorage(STORAGE_KEYS.layout, JSON.stringify(migrated));
         return migrated;
       }
     }
   } catch (error) {
-    // Poškozená uložená data: použije se výchozí rozložení.
   }
   return null;
 }
 
 function saveLayout() {
-  writeStorage(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+  writeStorage(STORAGE_KEYS.layout, JSON.stringify(layout));
 }
 
-// Výchozí rozložení vypadá stejně jako dřív: mřížka 2x2 pod hodinami.
 function defaultLayout() {
   const rect = canvas.getBoundingClientRect();
   let area = { x: 0, y: 0, w: rect.width, h: rect.height };
@@ -636,72 +625,53 @@ function applyLayout() {
 applyLayout();
 window.addEventListener("resize", applyLayout);
 
+function startPointerAction(event, id, getNewRect) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+
+  const canvasRect = canvas.getBoundingClientRect();
+  const startX = event.clientX;
+  const startY = event.clientY;
+  const startRect = { ...layout[id] };
+
+  function onMove(moveEvent) {
+    const dx = moveEvent.clientX - startX;
+    const dy = moveEvent.clientY - startY;
+    layout[id] = clampRect(getNewRect(startRect, dx, dy), canvasRect);
+    applyLayout();
+  }
+
+  function onUp() {
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    saveLayout();
+  }
+
+  document.addEventListener("pointermove", onMove);
+  document.addEventListener("pointerup", onUp);
+}
+
 function makeDraggable(id) {
-  const el = widgets[id];
-  const header = el.querySelector(".widget-header");
+  const header = widgets[id].querySelector(".widget-header");
 
   header.addEventListener("pointerdown", (event) => {
-    if (event.button !== undefined && event.button !== 0) return;
-    event.preventDefault();
-
-    const canvasRect = canvas.getBoundingClientRect();
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startRect = { ...layout[id] };
-
-    function onMove(moveEvent) {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-      layout[id] = clampRect(
-        { ...startRect, x: startRect.x + dx, y: startRect.y + dy },
-        canvasRect
-      );
-      applyLayout();
-    }
-
-    function onUp() {
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
-      saveLayout();
-    }
-
-    document.addEventListener("pointermove", onMove);
-    document.addEventListener("pointerup", onUp);
+    startPointerAction(event, id, (rect, dx, dy) => ({
+      ...rect,
+      x: rect.x + dx,
+      y: rect.y + dy,
+    }));
   });
 }
 
 function makeResizable(id) {
-  const el = widgets[id];
-  const handle = el.querySelector(".resize-handle");
+  const handle = widgets[id].querySelector(".resize-handle");
 
   handle.addEventListener("pointerdown", (event) => {
-    if (event.button !== undefined && event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-
-    const canvasRect = canvas.getBoundingClientRect();
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startRect = { ...layout[id] };
-
-    function onMove(moveEvent) {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-      layout[id] = clampRect(
-        { ...startRect, w: startRect.w + dx, h: startRect.h + dy },
-        canvasRect
-      );
-      applyLayout();
-    }
-
-    function onUp() {
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
-      saveLayout();
-    }
-
-    document.addEventListener("pointermove", onMove);
-    document.addEventListener("pointerup", onUp);
+    startPointerAction(event, id, (rect, dx, dy) => ({
+      ...rect,
+      w: rect.w + dx,
+      h: rect.h + dy,
+    }));
   });
 }
 
@@ -714,7 +684,7 @@ const settingsToggle = document.getElementById("settings-toggle");
 const settingsPanel = document.getElementById("settings-panel");
 const languageSelect = document.getElementById("setting-language");
 const timeFormatSelect = document.getElementById("setting-time-format");
-const secondsCheckbox = document.getElementById("setting-seconds");
+const showSecondsCheckbox = document.getElementById("setting-seconds");
 const showLinksCheckbox = document.getElementById("setting-show-links");
 const showTodoCheckbox = document.getElementById("setting-show-todo");
 const showTimerCheckbox = document.getElementById("setting-show-timer");
@@ -730,11 +700,18 @@ function applyLanguage() {
   updateClock();
 }
 
+const widgetVisibilityKeys = {
+  links: "showLinks",
+  todo: "showTodo",
+  timer: "showTimer",
+  notes: "showNotes",
+};
+
 function applyVisibility() {
-  widgets.links.classList.toggle("is-hidden", !settings.showLinks);
-  widgets.todo.classList.toggle("is-hidden", !settings.showTodo);
-  widgets.timer.classList.toggle("is-hidden", !settings.showTimer);
-  widgets.notes.classList.toggle("is-hidden", !settings.showNotes);
+  Object.keys(widgets).forEach((id) => {
+    const isVisible = settings[widgetVisibilityKeys[id]];
+    widgets[id].classList.toggle("is-hidden", !isVisible);
+  });
   applyLayout();
 }
 
@@ -748,13 +725,17 @@ function closeSettings() {
   settingsToggle.setAttribute("aria-expanded", "false");
 }
 
-languageSelect.value = settings.language;
-timeFormatSelect.value = settings.timeFormat;
-secondsCheckbox.checked = settings.showSeconds;
-showLinksCheckbox.checked = settings.showLinks;
-showTodoCheckbox.checked = settings.showTodo;
-showTimerCheckbox.checked = settings.showTimer;
-showNotesCheckbox.checked = settings.showNotes;
+function bindSetting(input, key, onChange) {
+  const property = input.type === "checkbox" ? "checked" : "value";
+
+  input[property] = settings[key];
+
+  input.addEventListener("change", () => {
+    settings[key] = input[property];
+    saveSettings();
+    onChange();
+  });
+}
 
 settingsToggle.addEventListener("click", () => {
   if (settingsPanel.hidden) {
@@ -777,47 +758,13 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-languageSelect.addEventListener("change", () => {
-  settings.language = languageSelect.value;
-  saveSettings();
-  applyLanguage();
-});
-
-timeFormatSelect.addEventListener("change", () => {
-  settings.timeFormat = timeFormatSelect.value;
-  saveSettings();
-  updateClock();
-});
-
-secondsCheckbox.addEventListener("change", () => {
-  settings.showSeconds = secondsCheckbox.checked;
-  saveSettings();
-  updateClock();
-});
-
-showLinksCheckbox.addEventListener("change", () => {
-  settings.showLinks = showLinksCheckbox.checked;
-  saveSettings();
-  applyVisibility();
-});
-
-showTodoCheckbox.addEventListener("change", () => {
-  settings.showTodo = showTodoCheckbox.checked;
-  saveSettings();
-  applyVisibility();
-});
-
-showTimerCheckbox.addEventListener("change", () => {
-  settings.showTimer = showTimerCheckbox.checked;
-  saveSettings();
-  applyVisibility();
-});
-
-showNotesCheckbox.addEventListener("change", () => {
-  settings.showNotes = showNotesCheckbox.checked;
-  saveSettings();
-  applyVisibility();
-});
+bindSetting(languageSelect, "language", applyLanguage);
+bindSetting(timeFormatSelect, "timeFormat", updateClock);
+bindSetting(showSecondsCheckbox, "showSeconds", updateClock);
+bindSetting(showLinksCheckbox, "showLinks", applyVisibility);
+bindSetting(showTodoCheckbox, "showTodo", applyVisibility);
+bindSetting(showTimerCheckbox, "showTimer", applyVisibility);
+bindSetting(showNotesCheckbox, "showNotes", applyVisibility);
 
 applyLanguage();
 applyVisibility();
